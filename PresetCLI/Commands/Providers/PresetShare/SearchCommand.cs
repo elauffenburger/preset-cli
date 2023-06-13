@@ -41,7 +41,7 @@ public class SearchCommand : PresetShareCommand
 
     private class UI
     {
-        private Window _window;
+        private readonly Window _window;
         private Label? _loadingLabel;
 
         public UI()
@@ -68,27 +68,36 @@ public class SearchCommand : PresetShareCommand
         public void OnLoadStart()
         {
             _loadingLabel = new Label { Text = "Loading..." };
-            _window!.Add(_loadingLabel);
+            _window.Add(_loadingLabel);
         }
 
         public void OnLoadEnd(List<SearchResult> results)
         {
-            _window!.Remove(_loadingLabel);
-            _window!.Add(CreateResultsListView(results));
+            _window.Remove(_loadingLabel);
+
+            if (results.Count() == 0)
+            {
+                return;
+            }
+
+            var list = CreateResultsListView(results);
+            _window.Add(list);
+
+            _window.Add(CreateResultDetailsPane(list, results[0], out var text));
+
+            list.SelectedItemChanged += args =>
+            {
+                text.Text = results[args.Item].Description;
+                text.SetNeedsDisplay();
+            };
         }
 
         private ListView CreateResultsListView(List<SearchResult> results)
         {
-            var _itemWidth = 50;
-            var _itemHeight = 1;
-
-            var scrollViewWidth = _window!.Bounds.Width / 3;
-            var scrollViewHeight = _window!.Bounds.Height;
-
             var list = new ListView(results.Select(result => result.Name).ToList())
             {
                 Width = 50,
-                Height = scrollViewHeight,
+                Height = _window.Bounds.Height,
                 ColorScheme = Colors.TopLevel,
             };
 
@@ -96,17 +105,37 @@ public class SearchCommand : PresetShareCommand
             {
                 var result = results[i];
 
-                list.Add(new TextField
+                list.Add(new TextView
                 {
                     ReadOnly = true,
                     Text = result.Name,
-                    Y = i * _itemHeight,
-                    Width = _itemWidth,
                     ColorScheme = Colors.Dialog,
+                    WordWrap = true,
+                    CanFocus = false,
                 });
             }
 
             return list;
+        }
+
+        private PanelView CreateResultDetailsPane(ListView resultsList, SearchResult result, out TextView text)
+        {
+            var panel = new PanelView
+            {
+                LayoutStyle = LayoutStyle.Computed,
+                X = Pos.Right(resultsList) + 1,
+            };
+
+            text = new TextView
+            {
+                Text = $"{result.Author}\n-----\n{result.Description}",
+                Height = resultsList.Height,
+                Width = resultsList.Width,
+                WordWrap = true,
+            };
+
+            panel.Add(text);
+            return panel;
         }
     }
 
