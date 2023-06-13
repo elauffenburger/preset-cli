@@ -42,22 +42,15 @@ public class SearchCommand : PresetShareCommand
 
     public override async ValueTask ExecuteAsync(IConsole console)
     {
-        var ui = new SearchResultsPage();
-
         await base.ExecuteAsync(console);
+        _client.DefaultRequestHeaders.Add("cookie", $"PHPSESSID={_config.Providers.PresetShare.SessionID}");
+
+        var ui = new SearchResultsPage(_client);
 
         // Start loading...
-        ui.OnLoadStart();
+        ui.OnLoadResultsStart();
 
-        var req = new HttpRequestMessage
-        {
-            Method = HttpMethod.Get,
-            RequestUri = BuildRequestURI()
-        };
-
-        req.Headers.Add("cookie", $"PHPSESSID={_config.Providers.PresetShare.SessionID}");
-
-        var res = await _client.SendAsync(req);
+        var res = await _client.GetAsync(BuildRequestURI());
         if (res.StatusCode != System.Net.HttpStatusCode.OK)
         {
             throw new CommandException("");
@@ -66,7 +59,7 @@ public class SearchCommand : PresetShareCommand
         var results = ParseResults(await res.Content.ReadAsStringAsync()).ToList();
 
         // Stop loading and display results.
-        ui.OnLoadEnd(results);
+        ui.OnLoadResultsEnd(results);
     }
 
     private Uri BuildRequestURI()
@@ -128,13 +121,14 @@ public class SearchCommand : PresetShareCommand
             {
                 var downloadButton = node.QuerySelector("[data-author-name][data-preset-id]");
                 var id = downloadButton?.GetAttributeValue<int?>("data-preset-id", null);
+                var previewURL = node.QuerySelector(".presetshare-player")?.GetAttributeValue("data-source", null);
 
                 return new SearchResult(
                     ID: id ?? 0,
                     Name: node.QuerySelector(".preset-item__name")?.InnerText?.Trim() ?? "",
                     Author: downloadButton?.GetAttributeValue("data-author-name", null) ?? "",
                     Description: HtmlToText(node.QuerySelector(".preset-item-info-handle2")?.GetAttributeValue("data-pt-title", null)) ?? "",
-                    PreviewURL: node.QuerySelector(".presetshare-player")?.GetAttributeValue("data-source", null),
+                    PreviewURL: previewURL == null ? null : _config.Providers.PresetShare.BaseURI + previewURL,
                     DownloadURL: id == null ? null : $"{_config.Providers.PresetShare.BaseURI}/download/index?id={id}"
                 );
             })

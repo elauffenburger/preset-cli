@@ -1,19 +1,27 @@
+using System.Runtime.CompilerServices;
+using System.Web;
 using Terminal.Gui;
 
 namespace PresetCLI.UI;
 
 public class SearchResultsPage
 {
+    private readonly HttpClient _client;
+    private readonly NetCoreAudio.Player _player = new();
+
     private readonly Window _window;
-    private Label? _loadingLabel;
+    private readonly View _loadingDialog = new Dialog { Text = "Loading..." };
 
     private List<SearchResult>? _results;
     private ListView? _resultsList;
     private int? _previewedResultIndex;
     private int? _selectedResultIndex;
 
-    public SearchResultsPage()
+    private readonly Label _debug;
+
+    public SearchResultsPage(HttpClient client)
     {
+        _client = client;
         _window = new Window
         {
             X = 0,
@@ -28,19 +36,30 @@ public class SearchResultsPage
             }),
         });
 
-        Application.Top.Add(_window, menu);
+        _debug = new Label
+        {
+            X = 0,
+            Y = Pos.Bottom(_window),
+            Width = _window.Bounds.Width,
+            Height = 1,
+            CanFocus = false,
+            ColorScheme = Colors.TopLevel,
+        };
+
+        Application.Top.Add(_window, menu, _debug);
     }
 
-    public void OnLoadStart()
+    public void OnLoadResultsStart()
     {
-        _loadingLabel = new Label { Text = "Loading..." };
-        _window.Add(_loadingLabel);
+        _window.Add(_loadingDialog);
     }
 
-    public void OnLoadEnd(List<SearchResult> results)
+    public void OnLoadResultsEnd(List<SearchResult> results)
     {
+        _results = results;
+
         // Stop loading.
-        _window.Remove(_loadingLabel);
+        _window.Remove(_loadingDialog);
 
         // If there were no results, bail.
         if (results.Count() == 0)
@@ -61,6 +80,13 @@ public class SearchResultsPage
             _window.Add(detailsPanel);
         }
 
+        _resultsList.DrawContentComplete += _ =>
+        {
+            var selected = results[_selectedResultIndex.Value];
+
+            // _debug.Text = $"{{ ID = {selected.ID}, Name = {selected.Name}, PreviewURL = {selected.PreviewURL}, DownloadURL = {selected.DownloadURL} }}";
+        };
+
         // Listen for selection changes to the results list.
         _resultsList.SelectedItemChanged += args =>
         {
@@ -71,7 +97,7 @@ public class SearchResultsPage
         };
 
         // Listen for attempts to preview a sample.
-        _resultsList.KeyUp += args =>
+        _resultsList.KeyUp += async args =>
         {
             if (args.KeyEvent.Key != Key.Enter)
             {
@@ -81,34 +107,62 @@ public class SearchResultsPage
             // If there isn't a currently previewed result, preview the selected one!
             if (_previewedResultIndex == null)
             {
-                StartPreviewing(_selectedResultIndex.Value);
+                await StartPreviewingAsync(_selectedResultIndex.Value);
             }
             // Otherwise, if the previewed result _is_ the selected one, stop previewing!
-            else if (_results![_previewedResultIndex.Value].ID == _results[_selectedResultIndex.Value].ID)
+            else if (_results![_previewedResultIndex.Value].ID == _results![_selectedResultIndex.Value].ID)
             {
-                StopPreviewing();
+                await StopPreviewingAsync();
             }
             // Otherwise, kill the current preview and preview the newly-requested result!
             else
             {
-                StopPreviewing();
-                StartPreviewing(_selectedResultIndex.Value);
+                await StopPreviewingAsync();
+                await StartPreviewingAsync(_selectedResultIndex.Value);
             }
         };
     }
 
-    private void StartPreviewing(int result)
+    private void AddLoader()
     {
-        _resultsList!.Subviews.ElementAt(result).Border.BorderStyle = BorderStyle.Single;
-        _previewedResultIndex = result;
+        Application.Top.Add(_loadingDialog);
+        _loadingDialog.SetFocus();
+        _window.Enabled = false;
     }
 
-    private void StopPreviewing()
+    private void RemoveLoader()
+    {
+        Application.Top.Remove(_loadingDialog);
+        _window.Enabled = true;
+    }
+
+    private async Task StartPreviewingAsync(int resultIndex)
+    {
+        var previewURL = _results![resultIndex].PreviewURL;
+        if (previewURL == null)
+        {
+            return;
+        }
+
+        AddLoader();
+
+        var localPreviewFile = await DownloadPreview(previewURL);
+        // await _player.Play(localPreviewFile);
+
+        RemoveLoader();
+
+        _resultsList!.Subviews.ElementAt(resultIndex).Border.BorderStyle = BorderStyle.Single;
+        _previewedResultIndex = resultIndex;
+    }
+
+    private async Task StopPreviewingAsync()
     {
         if (_previewedResultIndex == null)
         {
             return;
         }
+
+        // await _player.Stop();
 
         _resultsList!.Subviews.ElementAt(_previewedResultIndex.Value).Border.BorderStyle = BorderStyle.None;
         _previewedResultIndex = null;
@@ -171,5 +225,36 @@ public class SearchResultsPage
 
         panel.Add(text);
         return true;
+    }
+
+    private async Task<string> DownloadPreview(string url)
+    {
+        var path = Path.Join(CreateCacheDir("previews"), HttpUtility.UrlEncode(url));
+
+        return await DownloadURLTo(url, path);
+    }
+
+    private Task<string> DownloadPreset(string url)
+    {
+        var path = Path.Join(CreateCacheDir("presets"), HttpUtility.UrlEncode(url));
+
+        return DownloadURLTo(url, path);
+    }
+
+    private string CreateCacheDir(string dir) => Directory.CreateDirectory($"{Path.GetTempPath()}/preset-cli/{dir}/").FullName;
+
+    private async Task<string> DownloadURLTo(string url, string path)
+    {
+        _debug.Text = $"Downloading to {path}...";
+        _debug.Redraw(_debug.Bounds);
+
+        // If we haven't already downloaded this file, 
+        if (!File.Exists(path))
+        {
+            var res = await _client.GetAsync(url);
+            await File.WriteAllBytesAsync(path, await res.Content.ReadAsByteArrayAsync());
+        }
+
+        return path;
     }
 }
