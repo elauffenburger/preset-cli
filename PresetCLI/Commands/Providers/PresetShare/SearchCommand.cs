@@ -129,7 +129,7 @@ public class SearchCommand : PresetShareCommand
                     Author: downloadButton?.GetAttributeValue("data-author-name", null) ?? "",
                     Description: HtmlToText(node.QuerySelector(".preset-item-info-handle2")?.GetAttributeValue("data-pt-title", null)) ?? "",
                     PreviewURL: previewURL == null ? null : _config.Providers.PresetShare.BaseURI + previewURL,
-                    DownloadURL: id == null ? null : $"{_config.Providers.PresetShare.BaseURI}/download/index?id={id}"
+                    DownloadURL: id == null ? "" : $"{_config.Providers.PresetShare.BaseURI}/download/index?id={id}"
                 );
             })
             .ToList();

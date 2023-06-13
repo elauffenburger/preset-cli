@@ -27,7 +27,7 @@ public enum ProviderType
     PresetShare,
 }
 
-public record SearchResult(int ID, string Name, string Author, string Description, string? PreviewURL, string? DownloadURL) { }
+public record SearchResult(int ID, string Name, string Author, string Description, string? PreviewURL, string DownloadURL) { }
 
 public class Program
 {

@@ -14,7 +14,6 @@ public class SearchResultsPage
 
     private List<SearchResult>? _results;
     private ListView? _resultsList;
-    private int? _previewedResultIndex;
     private int? _selectedResultIndex;
 
     private readonly Label _debug;
@@ -29,6 +28,8 @@ public class SearchResultsPage
             Width = Dim.Fill(),
             Height = Dim.Fill() - 1
         };
+
+        _window.Unloaded += () => _player.Stop();
 
         var menu = new MenuBar(new MenuBarItem[] {
             new MenuBarItem ("_File", new MenuItem [] {
@@ -80,13 +81,6 @@ public class SearchResultsPage
             _window.Add(detailsPanel);
         }
 
-        _resultsList.DrawContentComplete += _ =>
-        {
-            var selected = results[_selectedResultIndex.Value];
-
-            // _debug.Text = $"{{ ID = {selected.ID}, Name = {selected.Name}, PreviewURL = {selected.PreviewURL}, DownloadURL = {selected.DownloadURL} }}";
-        };
-
         // Listen for selection changes to the results list.
         _resultsList.SelectedItemChanged += args =>
         {
@@ -99,26 +93,16 @@ public class SearchResultsPage
         // Listen for attempts to preview a sample.
         _resultsList.KeyUp += async args =>
         {
-            if (args.KeyEvent.Key != Key.Enter)
+            switch (args.KeyEvent.Key)
             {
-                return;
-            }
+                case Key.Space:
+                    await StartPreviewingAsync(_selectedResultIndex.Value);
+                    break;
 
-            // If there isn't a currently previewed result, preview the selected one!
-            if (_previewedResultIndex == null)
-            {
-                await StartPreviewingAsync(_selectedResultIndex.Value);
-            }
-            // Otherwise, if the previewed result _is_ the selected one, stop previewing!
-            else if (_results![_previewedResultIndex.Value].ID == _results![_selectedResultIndex.Value].ID)
-            {
-                await StopPreviewingAsync();
-            }
-            // Otherwise, kill the current preview and preview the newly-requested result!
-            else
-            {
-                await StopPreviewingAsync();
-                await StartPreviewingAsync(_selectedResultIndex.Value);
+                case Key.Enter:
+                    var selected = _results[_selectedResultIndex.Value];
+                    await DownloadPresetAsync(selected.DownloadURL);
+                    break;
             }
         };
     }
@@ -144,28 +128,11 @@ public class SearchResultsPage
             return;
         }
 
-        AddLoader();
-
         var localPreviewFile = await DownloadPreview(previewURL);
-        // await _player.Play(localPreviewFile);
-
-        RemoveLoader();
+        await _player.Stop();
+        await _player.Play(localPreviewFile);
 
         _resultsList!.Subviews.ElementAt(resultIndex).Border.BorderStyle = BorderStyle.Single;
-        _previewedResultIndex = resultIndex;
-    }
-
-    private async Task StopPreviewingAsync()
-    {
-        if (_previewedResultIndex == null)
-        {
-            return;
-        }
-
-        // await _player.Stop();
-
-        _resultsList!.Subviews.ElementAt(_previewedResultIndex.Value).Border.BorderStyle = BorderStyle.None;
-        _previewedResultIndex = null;
     }
 
     private ListView CreateResultsListView(List<SearchResult> results)
@@ -234,7 +201,7 @@ public class SearchResultsPage
         return await DownloadURLTo(url, path);
     }
 
-    private Task<string> DownloadPreset(string url)
+    private Task<string> DownloadPresetAsync(string url)
     {
         var path = Path.Join(CreateCacheDir("presets"), HttpUtility.UrlEncode(url));
 
@@ -245,14 +212,13 @@ public class SearchResultsPage
 
     private async Task<string> DownloadURLTo(string url, string path)
     {
-        _debug.Text = $"Downloading to {path}...";
-        _debug.Redraw(_debug.Bounds);
-
         // If we haven't already downloaded this file, 
         if (!File.Exists(path))
         {
+            AddLoader();
             var res = await _client.GetAsync(url);
             await File.WriteAllBytesAsync(path, await res.Content.ReadAsByteArrayAsync());
+            RemoveLoader();
         }
 
         return path;
