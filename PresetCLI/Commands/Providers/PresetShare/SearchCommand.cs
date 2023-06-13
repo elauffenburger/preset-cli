@@ -9,6 +9,7 @@ using Fizzler.Systems.HtmlAgilityPack;
 using System.Text.RegularExpressions;
 using Terminal.Gui;
 using System.Collections;
+using PresetCLI.UI;
 
 namespace PresetCLI.Commands.Providers.PresetShare;
 
@@ -39,109 +40,9 @@ public class SearchCommand : PresetShareCommand
         _client = client;
     }
 
-    private class UI
-    {
-        private readonly Window _window;
-        private Label? _loadingLabel;
-
-        public UI()
-        {
-            _window = new Window
-            {
-                X = 0,
-                Y = 1,
-                Width = Dim.Fill(),
-                Height = Dim.Fill() - 1
-            };
-
-            var menu = new MenuBar(new MenuBarItem[] {
-                new MenuBarItem ("_File", new MenuItem [] {
-                    new MenuItem ("_Quit", "", () => {
-                        Application.RequestStop ();
-                    })
-                }),
-            });
-
-            Application.Top.Add(_window, menu);
-        }
-
-        public void OnLoadStart()
-        {
-            _loadingLabel = new Label { Text = "Loading..." };
-            _window.Add(_loadingLabel);
-        }
-
-        public void OnLoadEnd(List<SearchResult> results)
-        {
-            _window.Remove(_loadingLabel);
-
-            if (results.Count() == 0)
-            {
-                return;
-            }
-
-            var list = CreateResultsListView(results);
-            _window.Add(list);
-
-            _window.Add(CreateResultDetailsPane(list, results[0], out var text));
-
-            list.SelectedItemChanged += args =>
-            {
-                text.Text = results[args.Item].Description;
-                text.SetNeedsDisplay();
-            };
-        }
-
-        private ListView CreateResultsListView(List<SearchResult> results)
-        {
-            var list = new ListView(results.Select(result => result.Name).ToList())
-            {
-                Width = 50,
-                Height = _window.Bounds.Height,
-                ColorScheme = Colors.TopLevel,
-            };
-
-            for (var i = 0; i < results.Count(); i++)
-            {
-                var result = results[i];
-
-                list.Add(new TextView
-                {
-                    ReadOnly = true,
-                    Text = result.Name,
-                    ColorScheme = Colors.Dialog,
-                    WordWrap = true,
-                    CanFocus = false,
-                });
-            }
-
-            return list;
-        }
-
-        private PanelView CreateResultDetailsPane(ListView resultsList, SearchResult result, out TextView text)
-        {
-            var panel = new PanelView
-            {
-                LayoutStyle = LayoutStyle.Computed,
-                X = Pos.Right(resultsList) + 1,
-            };
-
-            text = new TextView
-            {
-                Text = $"{result.Author}\n-----\n{result.Description}",
-                Height = resultsList.Height,
-                Width = resultsList.Width,
-                WordWrap = true,
-            };
-
-            panel.Add(text);
-            return panel;
-        }
-    }
-
     public override async ValueTask ExecuteAsync(IConsole console)
     {
-        var ui = new UI();
+        var ui = new SearchResultsPage();
 
         await base.ExecuteAsync(console);
 
