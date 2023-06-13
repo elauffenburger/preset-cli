@@ -125,6 +125,7 @@ public class SearchCommand : PresetShareCommand
 
                 return new SearchResult(
                     ID: id ?? 0,
+                    Provider: ProviderType.PresetShare,
                     Name: node.QuerySelector(".preset-item__name")?.InnerText?.Trim() ?? "",
                     Author: downloadButton?.GetAttributeValue("data-author-name", null) ?? "",
                     Description: HtmlToText(node.QuerySelector(".preset-item-info-handle2")?.GetAttributeValue("data-pt-title", null)) ?? "",

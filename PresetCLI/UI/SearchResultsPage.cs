@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using System.Web;
+using CliFx.Exceptions;
 using Terminal.Gui;
 
 namespace PresetCLI.UI;
@@ -21,6 +22,7 @@ public class SearchResultsPage
     public SearchResultsPage(HttpClient client)
     {
         _client = client;
+
         _window = new Window
         {
             X = 0,
@@ -101,7 +103,8 @@ public class SearchResultsPage
 
                 case Key.Enter:
                     var selected = _results[_selectedResultIndex.Value];
-                    await DownloadPresetAsync(selected.DownloadURL);
+                    var file = await DownloadPresetAsync(selected.DownloadURL);
+                    await LoadPresetIntoSynthAsync(selected, file);
                     break;
             }
         };
@@ -222,5 +225,17 @@ public class SearchResultsPage
         }
 
         return path;
+    }
+
+    private async Task LoadPresetIntoSynthAsync(SearchResult result, string filePath)
+    {
+        switch (result.Provider)
+        {
+            case ProviderType.PresetShare:
+                break;
+
+            default:
+                throw new CommandException("");
+        }
     }
 }

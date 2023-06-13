@@ -1,7 +1,6 @@
 ﻿using CliFx;
 using CliFx.Extensibility;
 using Microsoft.Extensions.DependencyInjection;
-using PresetCLI.Commands.Providers.PresetShare;
 using Terminal.Gui;
 
 namespace PresetCLI;
@@ -19,7 +18,18 @@ public class Config
         public required PresetShareConfig PresetShare;
     }
 
+    public class SynthsConfig
+    {
+        public class VitalConfig
+        {
+            public required string PresetsDir;
+        }
+
+        public required VitalConfig Vital;
+    }
+
     public required ProvidersConfig Providers;
+    public required SynthsConfig Synths;
 }
 
 public enum ProviderType
@@ -27,11 +37,11 @@ public enum ProviderType
     PresetShare,
 }
 
-public record SearchResult(int ID, string Name, string Author, string Description, string? PreviewURL, string DownloadURL) { }
+public record SearchResult(int ID, ProviderType Provider, string Name, string Author, string Description, string? PreviewURL, string DownloadURL) { }
 
 public class Program
 {
-    public static async Task<int> Main()
+    public static int Main()
     {
         var result = -1;
 
@@ -57,6 +67,13 @@ public class Program
                                     PresetShare = new Config.ProvidersConfig.PresetShareConfig
                                     {
                                         BaseURI = "https://presetshare.com"
+                                    }
+                                },
+                                Synths = new Config.SynthsConfig
+                                {
+                                    Vital = new Config.SynthsConfig.VitalConfig
+                                    {
+                                        PresetsDir = "~/Music/Vital"
                                     }
                                 }
                             };
