@@ -1,5 +1,6 @@
 using CliFx.Exceptions;
 using CliFx.Extensibility;
+using PresetCLI.Enums;
 
 namespace PresetCLI.Commands.Providers.PresetShare;
 
@@ -39,13 +40,6 @@ public class GenreTypeConverter : BindingConverter<GenreType>
         null => GenreType.Any,
         _ => throw new CommandException("")
     };
-}
-
-public enum SynthType
-{
-    Any,
-    Vital,
-    Serum,
 }
 
 public class SynthTypeConverter : BindingConverter<SynthType>

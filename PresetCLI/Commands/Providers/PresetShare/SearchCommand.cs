@@ -10,6 +10,8 @@ using System.Text.RegularExpressions;
 using Terminal.Gui;
 using System.Collections;
 using PresetCLI.UI;
+using PresetCLI.Enums;
+using System.ComponentModel;
 
 namespace PresetCLI.Commands.Providers.PresetShare;
 
@@ -18,7 +20,8 @@ public class SearchCommand : PresetShareCommand
 {
     private static readonly Regex _htmlBreakRegex = new("<br ?/>");
 
-    private readonly HttpClient _client;
+    private readonly Func<HttpClient> _clientFn;
+    private readonly Dictionary<SynthType, ISynthService> _synthServices;
 
     [CommandOption("keywords", 'k')]
     public string? Keywords { get; init; }
@@ -35,28 +38,31 @@ public class SearchCommand : PresetShareCommand
     [CommandOption("sort", 's', Converter = typeof(SortTypeConverter))]
     public SortType Sort { get; init; } = SortType.Relevance;
 
-    public SearchCommand(Config config, HttpClient client) : base(config)
+    public SearchCommand(Config config, Func<HttpClient> clientFn, Dictionary<SynthType, ISynthService> synthServices) : base(config)
     {
-        _client = client;
+        _clientFn = clientFn;
+        _synthServices = synthServices;
     }
 
     public override async ValueTask ExecuteAsync(IConsole console)
     {
         await base.ExecuteAsync(console);
-        _client.DefaultRequestHeaders.Add("cookie", $"PHPSESSID={_config.Providers.PresetShare.SessionID}");
 
-        var ui = new SearchResultsPage(_client);
+        var client = _clientFn();
+        var ui = new SearchResultsPage(new PresetShareProviderService(client), _synthServices);
 
         // Start loading...
         ui.OnLoadResultsStart();
 
-        var res = await _client.GetAsync(BuildRequestURI());
+        var res = await client.GetAsync(BuildRequestURI());
         if (res.StatusCode != System.Net.HttpStatusCode.OK)
         {
             throw new CommandException("");
         }
 
-        var results = ParseResults(await res.Content.ReadAsStringAsync()).ToList();
+        var results = ParseResults(await res.Content.ReadAsStringAsync())
+            .Where(result => !result.IsPremium)
+            .ToList();
 
         // Stop loading and display results.
         ui.OnLoadResultsEnd(results);
@@ -115,6 +121,8 @@ public class SearchCommand : PresetShareCommand
         var doc = new HtmlDocument();
         doc.LoadHtml(html);
 
+        var synthTypeConverter = new SynthTypeConverter();
+
         return doc.DocumentNode
             .QuerySelectorAll(".preset-item")
             .Select(node =>
@@ -126,6 +134,8 @@ public class SearchCommand : PresetShareCommand
                 return new SearchResult(
                     ID: id ?? 0,
                     Provider: ProviderType.PresetShare,
+                    IsPremium: downloadButton?.HasClass("for-subs") ?? true,
+                    Synth: synthTypeConverter.Convert(node.QuerySelector(".preset-item__info > .link-success").InnerText.ToLower()),
                     Name: node.QuerySelector(".preset-item__name")?.InnerText?.Trim() ?? "",
                     Author: downloadButton?.GetAttributeValue("data-author-name", null) ?? "",
                     Description: HtmlToText(node.QuerySelector(".preset-item-info-handle2")?.GetAttributeValue("data-pt-title", null)) ?? "",

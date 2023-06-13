@@ -1,16 +1,18 @@
-using System.Runtime.CompilerServices;
-using System.Web;
-using CliFx.Exceptions;
+using PresetCLI.Commands.Providers.PresetShare;
+using PresetCLI.Enums;
 using Terminal.Gui;
 
 namespace PresetCLI.UI;
 
 public class SearchResultsPage
 {
-    private readonly HttpClient _client;
+    private readonly IProviderService _providerService;
+    private readonly Dictionary<SynthType, ISynthService> _synthServices;
     private readonly NetCoreAudio.Player _player = new();
 
     private readonly Window _window;
+
+    private bool _loading = false;
     private readonly View _loadingDialog = new Dialog { Text = "Loading..." };
 
     private List<SearchResult>? _results;
@@ -19,9 +21,10 @@ public class SearchResultsPage
 
     private readonly Label _debug;
 
-    public SearchResultsPage(HttpClient client)
+    public SearchResultsPage(IProviderService providerService, Dictionary<SynthType, ISynthService> synthServices)
     {
-        _client = client;
+        _providerService = providerService;
+        _synthServices = synthServices;
 
         _window = new Window
         {
@@ -88,7 +91,7 @@ public class SearchResultsPage
         {
             _selectedResultIndex = args.Item;
 
-            detailsPanelText!.Text = results[args.Item].Description;
+            detailsPanelText!.Text = GetDetailsText(results[args.Item]);
             detailsPanelText.SetNeedsDisplay();
         };
 
@@ -103,8 +106,8 @@ public class SearchResultsPage
 
                 case Key.Enter:
                     var selected = _results[_selectedResultIndex.Value];
-                    var file = await DownloadPresetAsync(selected.DownloadURL);
-                    await LoadPresetIntoSynthAsync(selected, file);
+                    var file = await _providerService.DownloadPresetAsync(selected);
+                    await _synthServices[selected.Synth].ImportPresetAsync(selected, file);
                     break;
             }
         };
@@ -112,6 +115,12 @@ public class SearchResultsPage
 
     private void AddLoader()
     {
+        if (_loading)
+        {
+            return;
+        }
+
+        _loading = true;
         Application.Top.Add(_loadingDialog);
         _loadingDialog.SetFocus();
         _window.Enabled = false;
@@ -119,19 +128,25 @@ public class SearchResultsPage
 
     private void RemoveLoader()
     {
+        if (!_loading)
+        {
+            return;
+        }
+
+        _loading = false;
         Application.Top.Remove(_loadingDialog);
         _window.Enabled = true;
     }
 
     private async Task StartPreviewingAsync(int resultIndex)
     {
-        var previewURL = _results![resultIndex].PreviewURL;
-        if (previewURL == null)
+        var result = _results![resultIndex];
+        if (result.PreviewURL == null)
         {
             return;
         }
 
-        var localPreviewFile = await DownloadPreview(previewURL);
+        var localPreviewFile = await _providerService.DownloadPreviewAsync(result);
         await _player.Stop();
         await _player.Play(localPreviewFile);
 
@@ -187,7 +202,7 @@ public class SearchResultsPage
         text = new TextView
         {
             ReadOnly = true,
-            Text = $"{result.Author}\n-----\n{result.Description}",
+            Text = GetDetailsText(result),
             Height = resultsList.Height,
             Width = resultsList.Width,
             WordWrap = true,
@@ -197,45 +212,6 @@ public class SearchResultsPage
         return true;
     }
 
-    private async Task<string> DownloadPreview(string url)
-    {
-        var path = Path.Join(CreateCacheDir("previews"), HttpUtility.UrlEncode(url));
-
-        return await DownloadURLTo(url, path);
-    }
-
-    private Task<string> DownloadPresetAsync(string url)
-    {
-        var path = Path.Join(CreateCacheDir("presets"), HttpUtility.UrlEncode(url));
-
-        return DownloadURLTo(url, path);
-    }
-
-    private string CreateCacheDir(string dir) => Directory.CreateDirectory($"{Path.GetTempPath()}/preset-cli/{dir}/").FullName;
-
-    private async Task<string> DownloadURLTo(string url, string path)
-    {
-        // If we haven't already downloaded this file, 
-        if (!File.Exists(path))
-        {
-            AddLoader();
-            var res = await _client.GetAsync(url);
-            await File.WriteAllBytesAsync(path, await res.Content.ReadAsByteArrayAsync());
-            RemoveLoader();
-        }
-
-        return path;
-    }
-
-    private async Task LoadPresetIntoSynthAsync(SearchResult result, string filePath)
-    {
-        switch (result.Provider)
-        {
-            case ProviderType.PresetShare:
-                break;
-
-            default:
-                throw new CommandException("");
-        }
-    }
+    private static string GetDetailsText(SearchResult result) 
+        => $"{result.Author}\n-----\n{result.Description}";
 }

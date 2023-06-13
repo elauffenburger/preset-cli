@@ -12,6 +12,9 @@ public abstract class PresetShareCommand : ICommand
     [CommandOption("session")]
     public string? SessionID { get; init; }
 
+    [CommandOption("identity")]
+    public string? Identity { get; init; }
+
     protected PresetShareCommand(Config config)
     {
         _config = config;
@@ -22,6 +25,10 @@ public abstract class PresetShareCommand : ICommand
         if (!string.IsNullOrEmpty(SessionID))
         {
             _config.Providers.PresetShare.SessionID = SessionID;
+        }
+
+        if(!string.IsNullOrEmpty(Identity)) {
+            _config.Providers.PresetShare.Identity = Identity;
         }
 
         if (string.IsNullOrEmpty(_config.Providers.PresetShare.SessionID))
