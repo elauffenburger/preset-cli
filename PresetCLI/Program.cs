@@ -6,7 +6,6 @@ using CliFx.Extensibility;
 using Microsoft.Extensions.DependencyInjection;
 using PresetCLI.Commands.Providers.PresetShare;
 using PresetCLI.Enums;
-using Terminal.Gui;
 
 namespace PresetCLI;
 
