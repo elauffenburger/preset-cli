@@ -22,6 +22,7 @@ public class SearchCommand : PresetShareCommand
 
     private readonly Func<HttpClient> _clientFn;
     private readonly Dictionary<SynthType, ISynthService> _synthServices;
+    private readonly PresetShareProviderService _presetShareProviderService;
 
     [CommandOption("keywords", 'k')]
     public string? Keywords { get; init; }
@@ -38,10 +39,11 @@ public class SearchCommand : PresetShareCommand
     [CommandOption("sort", 's', Converter = typeof(SortTypeConverter))]
     public SortType Sort { get; init; } = SortType.Relevance;
 
-    public SearchCommand(Config config, Func<HttpClient> clientFn, Dictionary<SynthType, ISynthService> synthServices) : base(config)
+    public SearchCommand(Config config, Func<HttpClient> clientFn, Dictionary<SynthType, ISynthService> synthServices, PresetShareProviderService presetShareProviderService) : base(config)
     {
         _clientFn = clientFn;
         _synthServices = synthServices;
+        _presetShareProviderService = presetShareProviderService;
     }
 
     public override async ValueTask ExecuteAsync(IConsole console)
@@ -49,10 +51,6 @@ public class SearchCommand : PresetShareCommand
         await base.ExecuteAsync(console);
 
         var client = _clientFn();
-        var ui = new SearchResultsPage(new PresetShareProviderService(client), _synthServices);
-
-        // Start loading...
-        ui.OnLoadResultsStart();
 
         var res = await client.GetAsync(BuildRequestURI());
         if (res.StatusCode != System.Net.HttpStatusCode.OK)
@@ -64,8 +62,8 @@ public class SearchCommand : PresetShareCommand
             .Where(result => !result.IsPremium)
             .ToList();
 
-        // Stop loading and display results.
-        ui.OnLoadResultsEnd(results);
+        var ui = new SearchResultsPage(_presetShareProviderService, _synthServices, results);
+        ui.Start();
     }
 
     private Uri BuildRequestURI()

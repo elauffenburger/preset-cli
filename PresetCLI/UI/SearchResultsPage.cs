@@ -1,4 +1,4 @@
-using PresetCLI.Commands.Providers.PresetShare;
+using System.Diagnostics;
 using PresetCLI.Enums;
 using Terminal.Gui;
 
@@ -8,23 +8,30 @@ public class SearchResultsPage
 {
     private readonly IProviderService _providerService;
     private readonly Dictionary<SynthType, ISynthService> _synthServices;
+    private readonly List<SearchResult> _results;
     private readonly NetCoreAudio.Player _player = new();
 
-    private readonly Window _window;
-
-    private bool _loading = false;
-    private readonly View _loadingDialog = new Dialog { Text = "Loading..." };
-
-    private List<SearchResult>? _results;
+    private Window? _window;
+    private Dialog? _loadingDialog;
     private ListView? _resultsList;
     private int? _selectedResultIndex;
 
-    private readonly Label _debug;
-
-    public SearchResultsPage(IProviderService providerService, Dictionary<SynthType, ISynthService> synthServices)
+    public SearchResultsPage(IProviderService providerService, Dictionary<SynthType, ISynthService> synthServices, List<SearchResult> results)
     {
         _providerService = providerService;
         _synthServices = synthServices;
+        _results = results;
+    }
+
+    public void Start()
+    {
+        // If there were no results, bail.
+        if (_results.Count() == 0)
+        {
+            return;
+        }
+
+        Application.Init();
 
         _window = new Window
         {
@@ -36,52 +43,20 @@ public class SearchResultsPage
 
         _window.Unloaded += () => _player.Stop();
 
-        var menu = new MenuBar(new MenuBarItem[] {
-            new MenuBarItem ("_File", new MenuItem [] {
-                new MenuItem ("_Quit", "", () => Application.RequestStop())
-            }),
-        });
-
-        _debug = new Label
+        _loadingDialog = new Dialog
         {
-            X = 0,
-            Y = Pos.Bottom(_window),
-            Width = _window.Bounds.Width,
-            Height = 1,
-            CanFocus = false,
-            ColorScheme = Colors.TopLevel,
+            Text = "Loading...",
         };
 
-        Application.Top.Add(_window, menu, _debug);
-    }
-
-    public void OnLoadResultsStart()
-    {
-        _window.Add(_loadingDialog);
-    }
-
-    public void OnLoadResultsEnd(List<SearchResult> results)
-    {
-        _results = results;
-
-        // Stop loading.
-        _window.Remove(_loadingDialog);
-
-        // If there were no results, bail.
-        if (results.Count() == 0)
-        {
-            return;
-        }
-
         // Add a results list view.
-        _resultsList = CreateResultsListView(results);
+        _resultsList = CreateResultsListView(_results);
         _window.Add(_resultsList);
 
         // Track that we're currently on the first item.
         _selectedResultIndex = 0;
 
         // Add a details panel for the selected result.
-        if (CreateResultDetailsPanel(_resultsList, results[_selectedResultIndex.Value], out var detailsPanel, out var detailsPanelText))
+        if (CreateResultDetailsPanel(_resultsList, _results[_selectedResultIndex.Value], out var detailsPanel, out var detailsPanelText))
         {
             _window.Add(detailsPanel);
         }
@@ -91,51 +66,47 @@ public class SearchResultsPage
         {
             _selectedResultIndex = args.Item;
 
-            detailsPanelText!.Text = GetDetailsText(results[args.Item]);
+            detailsPanelText!.Text = GetDetailsText(_results[args.Item]);
             detailsPanelText.SetNeedsDisplay();
         };
 
         // Listen for attempts to preview a sample.
-        _resultsList.KeyUp += async args =>
+        _resultsList.KeyPress += async args =>
         {
             switch (args.KeyEvent.Key)
             {
                 case Key.Space:
+                    AddLoader();
                     await StartPreviewingAsync(_selectedResultIndex.Value);
+                    RemoveLoader();
+
                     break;
 
                 case Key.Enter:
+                    AddLoader();
                     var selected = _results[_selectedResultIndex.Value];
                     var file = await _providerService.DownloadPresetAsync(selected);
                     await _synthServices[selected.Synth].ImportPresetAsync(selected, file);
+                    RemoveLoader();
+
                     break;
             }
         };
+
+        Debugger.Launch();
+
+        Application.Run(_window);
+        Application.Shutdown();
     }
 
     private void AddLoader()
     {
-        if (_loading)
-        {
-            return;
-        }
-
-        _loading = true;
         Application.Top.Add(_loadingDialog);
-        _loadingDialog.SetFocus();
-        _window.Enabled = false;
     }
 
     private void RemoveLoader()
     {
-        if (!_loading)
-        {
-            return;
-        }
-
-        _loading = false;
         Application.Top.Remove(_loadingDialog);
-        _window.Enabled = true;
     }
 
     private async Task StartPreviewingAsync(int resultIndex)
@@ -158,7 +129,7 @@ public class SearchResultsPage
         var list = new ListView(results.Select(result => result.Name).ToList())
         {
             Width = 50,
-            Height = _window.Bounds.Height,
+            Height = Dim.Fill(),
             ColorScheme = Colors.TopLevel,
         };
 
@@ -212,6 +183,6 @@ public class SearchResultsPage
         return true;
     }
 
-    private static string GetDetailsText(SearchResult result) 
+    private static string GetDetailsText(SearchResult result)
         => $"{result.Author}\n-----\n{result.Description}";
 }

@@ -1,8 +1,10 @@
-﻿using System.Net;
+﻿using System.Diagnostics;
+using System.Net;
 using System.Text.RegularExpressions;
 using CliFx;
 using CliFx.Extensibility;
 using Microsoft.Extensions.DependencyInjection;
+using PresetCLI.Commands.Providers.PresetShare;
 using PresetCLI.Enums;
 using Terminal.Gui;
 
@@ -47,15 +49,17 @@ public interface IProviderService
 
     Task<string> DownloadPreviewAsync(SearchResult result);
     Task<string> DownloadPresetAsync(SearchResult result);
+
+    Task ClearCacheAsync();
 }
 
 public abstract class ProviderService : IProviderService
 {
-    protected readonly HttpClient _client;
+    protected readonly Func<HttpClient> _clientFn;
 
-    public ProviderService(HttpClient client)
+    public ProviderService(Func<HttpClient> clientFn)
     {
-        _client = client;
+        _clientFn = clientFn;
     }
 
     public abstract string ProviderName { get; }
@@ -72,21 +76,32 @@ public abstract class ProviderService : IProviderService
         return DownloadURLTo(result.DownloadURL, path);
     }
 
-    private string CreateCacheDir(string dir) => Directory.CreateDirectory($"{Path.GetTempPath()}/preset-cli/{dir}/{ProviderName}/").FullName;
+    public async Task ClearCacheAsync()
+    {
+        if (!Directory.Exists(RootProviderCacheDir))
+        {
+            return;
+        }
+
+        Directory.Delete(RootProviderCacheDir, true);
+    }
+
+    private string CreateCacheDir(string dir) => Directory.CreateDirectory($"{RootProviderCacheDir}/{dir}").FullName;
 
     private async Task<string> DownloadURLTo(string url, string path)
     {
-        // DO NOT SUBMIT: remove this after testing.
-        File.Delete(path);
-
         if (!File.Exists(path))
         {
-            var res = await _client.GetAsync(url);
+            var client = _clientFn();
+
+            var res = await client.GetAsync(url);
             await File.WriteAllBytesAsync(path, await res.Content.ReadAsByteArrayAsync());
         }
 
         return path;
     }
+
+    private string RootProviderCacheDir => $"{Path.GetTempPath()}/preset-cli/{ProviderName}";
 }
 
 public interface ISynthService
@@ -133,95 +148,90 @@ public record SearchResult(int ID, ProviderType Provider, bool IsPremium, SynthT
 
 public class Program
 {
-    public static int Main()
+    public static async Task<int> Main(string[] args)
     {
-        var result = -1;
-
-        Application.Init();
-
-        try
+        if (args.Any(arg => arg == "--debug"))
         {
-            Application.MainLoop.Invoke(async () =>
+            while (!Debugger.IsAttached)
             {
-                result = await new CliApplicationBuilder()
-                    .AddCommandsFromThisAssembly()
-                    .UseTypeActivator(cmds =>
+                Console.WriteLine("waiting for debugger...");
+                await Task.Delay(TimeSpan.FromSeconds(1));
+            }
+        }
+
+        return await new CliApplicationBuilder()
+            .AddCommandsFromThisAssembly()
+            .UseTypeActivator(cmds =>
+            {
+                var services = new ServiceCollection();
+
+                // Register config.
+                services.AddSingleton(services =>
+                {
+                    return new Config
                     {
-                        var services = new ServiceCollection();
-
-                        // Register config.
-                        services.AddSingleton(services =>
+                        Providers = new Config.ProvidersConfig
                         {
-                            return new Config
+                            PresetShare = new Config.ProvidersConfig.PresetShareConfig
                             {
-                                Providers = new Config.ProvidersConfig
-                                {
-                                    PresetShare = new Config.ProvidersConfig.PresetShareConfig
-                                    {
-                                        BaseURI = "https://presetshare.com"
-                                    }
-                                },
-                                Synths = new Config.SynthsConfig
-                                {
-                                    Vital = new Config.SynthsConfig.VitalConfig
-                                    {
-                                        PresetsDir = "/Users/otacon/Music/Vital"
-                                    }
-                                }
-                            };
-                        });
-
-                        // Register HttpClient.
-                        services.AddSingleton<Func<HttpClient>>(services =>
+                                BaseURI = "https://presetshare.com"
+                            }
+                        },
+                        Synths = new Config.SynthsConfig
                         {
-                            return () =>
+                            Vital = new Config.SynthsConfig.VitalConfig
                             {
-                                var config = services.GetRequiredService<Config>();
-
-                                var handler = new HttpClientHandler();
-                                handler.CookieContainer.Add(new Uri("https://presetshare.com"), new Cookie("PHPSESSID", config.Providers.PresetShare.SessionID));
-                                handler.CookieContainer.Add(new Uri("https://presetshare.com"), new Cookie("_identity", "a03ffadc68a6e52acb1a38f0279938fac7614bbe41aac05b33d7fc54b2d2f2dea%3A2%3A%7Bi%3A0%3Bs%3A9%3A%22_identity%22%3Bi%3A1%3Bs%3A50%3A%22%5B51637%2C%22dLGZjPG_64a2nAOdNP6UpvdKbw1tNiWx%22%2C2592000%5D%22%3B%7D"));
-
-                                return new HttpClient(handler);
-                            };
-                        });
-
-                        // Register commands.
-                        foreach (var cmd in cmds)
-                        {
-                            services.AddTransient(cmd);
+                                PresetsDir = "/Users/otacon/Music/Vital"
+                            }
                         }
+                    };
+                });
 
-                        // Add converters.
-                        foreach (var converter in GetTypesImplementing(typeof(BindingConverter<string>).GetGenericTypeDefinition()))
-                        {
-                            services.AddTransient(converter);
-                        }
+                // Register HttpClient.
+                services.AddSingleton<Func<HttpClient>>(services =>
+                {
+                    return () =>
+                    {
+                        var config = services.GetRequiredService<Config>();
 
-                        // Add synth services.
-                        services.AddSingleton<VitalSynthService>();
-                        services.AddSingleton(services =>
-                        {
-                            return new Dictionary<SynthType, ISynthService>
-                            {
-                                {SynthType.Vital, services.GetRequiredService<VitalSynthService>()},
-                            };
-                        });
+                        var handler = new HttpClientHandler();
+                        handler.CookieContainer.Add(new Uri("https://presetshare.com"), new Cookie("PHPSESSID", config.Providers.PresetShare.SessionID));
+                        handler.CookieContainer.Add(new Uri("https://presetshare.com"), new Cookie("_identity", "a03ffadc68a6e52acb1a38f0279938fac7614bbe41aac05b33d7fc54b2d2f2dea%3A2%3A%7Bi%3A0%3Bs%3A9%3A%22_identity%22%3Bi%3A1%3Bs%3A50%3A%22%5B51637%2C%22dLGZjPG_64a2nAOdNP6UpvdKbw1tNiWx%22%2C2592000%5D%22%3B%7D"));
 
-                        return services.BuildServiceProvider();
-                    })
-                    .Build()
-                    .RunAsync();
-            });
+                        return new HttpClient(handler);
+                    };
+                });
 
-            Application.Run();
+                // Register commands.
+                foreach (var cmd in cmds)
+                {
+                    services.AddTransient(cmd);
+                }
 
-            return result;
-        }
-        finally
-        {
-            Application.Shutdown();
-        }
+                // Register converters.
+                foreach (var converter in GetTypesImplementing(typeof(BindingConverter<string>).GetGenericTypeDefinition()))
+                {
+                    services.AddTransient(converter);
+                }
+
+                // Register synth services.
+                services.AddSingleton<VitalSynthService>();
+                services.AddSingleton(services =>
+                {
+                    return new Dictionary<SynthType, ISynthService>
+                    {
+                        {SynthType.Vital, services.GetRequiredService<VitalSynthService>()},
+                    };
+                });
+
+                // Register provider services.
+                services.AddTransient<PresetShareProviderService>();
+                services.AddTransient<IProviderService, PresetShareProviderService>();
+
+                return services.BuildServiceProvider();
+            })
+            .Build()
+            .RunAsync();
     }
 
     private static IEnumerable<Type> GetTypesImplementing(Type targetType)
