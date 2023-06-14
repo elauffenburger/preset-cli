@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 
-set -o errexit -o nounbound -o pipefail
+set -o errexit -o pipefail
 
-dotnet build
-dotnet test
+dotnet build && dotnet test || exit 1
