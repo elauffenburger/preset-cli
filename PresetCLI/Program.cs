@@ -227,6 +227,9 @@ public class Program
                 services.AddTransient<PresetShareProviderService>();
                 services.AddTransient<IProviderService, PresetShareProviderService>();
 
+                // Register misc. services.
+                services.AddSingleton<PresetShareSearchService>();
+
                 return services.BuildServiceProvider();
             })
             .Build()

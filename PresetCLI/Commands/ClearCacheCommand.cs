@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using CliFx;
 using CliFx.Attributes;
 using CliFx.Infrastructure;

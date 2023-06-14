@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using PresetCLI.Commands.Providers.PresetShare;
 using PresetCLI.Enums;
 using Terminal.Gui;
 
@@ -8,25 +9,29 @@ public class SearchResultsPage
 {
     private readonly IProviderService _providerService;
     private readonly Dictionary<SynthType, ISynthService> _synthServices;
-    private readonly List<SearchResult> _results;
+    private readonly PresetShareSearchService _presetShareSearchService;
     private readonly NetCoreAudio.Player _player = new();
+
+    private SearchResults? _results;
 
     private Window? _window;
     private Dialog? _loadingDialog;
     private ListView? _resultsList;
     private int? _selectedResultIndex;
 
-    public SearchResultsPage(IProviderService providerService, Dictionary<SynthType, ISynthService> synthServices, List<SearchResult> results)
+    public SearchResultsPage(IProviderService providerService, Dictionary<SynthType, ISynthService> synthServices, PresetShareSearchService presetShareSearchService)
     {
         _providerService = providerService;
         _synthServices = synthServices;
-        _results = results;
+        _presetShareSearchService = presetShareSearchService;
     }
 
-    public void Start()
+    public async Task Start(SearchOptions firstSearch)
     {
+        _results = await _presetShareSearchService.SearchAsync(firstSearch);
+
         // If there were no results, bail.
-        if (_results.Count() == 0)
+        if (_results.Results.Count() == 0)
         {
             return;
         }
@@ -49,14 +54,14 @@ public class SearchResultsPage
         };
 
         // Add a results list view.
-        _resultsList = CreateResultsListView(_results);
+        _resultsList = CreateResultsListView(_results.Results);
         _window.Add(_resultsList);
 
         // Track that we're currently on the first item.
         _selectedResultIndex = 0;
 
         // Add a details panel for the selected result.
-        if (CreateResultDetailsPanel(_resultsList, _results[_selectedResultIndex.Value], out var detailsPanel, out var detailsPanelText))
+        if (CreateResultDetailsPanel(_resultsList, _results.Results[_selectedResultIndex.Value], out var detailsPanel, out var detailsPanelText))
         {
             _window.Add(detailsPanel);
         }
@@ -66,7 +71,7 @@ public class SearchResultsPage
         {
             _selectedResultIndex = args.Item;
 
-            detailsPanelText!.Text = GetDetailsText(_results[args.Item]);
+            detailsPanelText!.Text = GetDetailsText(_results.Results[args.Item]);
             detailsPanelText.SetNeedsDisplay();
         };
 
@@ -84,7 +89,7 @@ public class SearchResultsPage
 
                 case Key.Enter:
                     AddLoader();
-                    var selected = _results[_selectedResultIndex.Value];
+                    var selected = _results.Results[_selectedResultIndex.Value];
                     var file = await _providerService.DownloadPresetAsync(selected);
                     await _synthServices[selected.Synth].ImportPresetAsync(selected, file);
                     RemoveLoader();
@@ -111,7 +116,7 @@ public class SearchResultsPage
 
     private async Task StartPreviewingAsync(int resultIndex)
     {
-        var result = _results![resultIndex];
+        var result = _results!.Results[resultIndex];
         if (result.PreviewURL == null)
         {
             return;
