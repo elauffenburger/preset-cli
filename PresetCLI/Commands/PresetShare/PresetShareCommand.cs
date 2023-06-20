@@ -36,6 +36,11 @@ public abstract class PresetShareCommand : BaseCommand
             _config.Providers.PresetShare.Identity = Identity;
         }
 
+        if (string.IsNullOrEmpty(_config.Providers.PresetShare.Identity))
+        {
+            throw new CommandException("");
+        }
+
         if (string.IsNullOrEmpty(_config.Providers.PresetShare.SessionID))
         {
             throw new CommandException("");

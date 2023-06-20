@@ -33,13 +33,35 @@ public class Program
                 // Register config.
                 services.AddSingleton(services =>
                 {
+                    var homeDir = Environment.GetEnvironmentVariable("HOME");
+
+                    var configFilePath = Path.Join(homeDir, ".presetclirc");
+                    var configFileVars = File.Exists(configFilePath)
+                        ? File.ReadAllLines(configFilePath)
+                            .Aggregate(new Dictionary<string, string>(), (acc, line) =>
+                            {
+                                var lineParts = line.Split("=", 2);
+                                acc[lineParts[0].ToLowerInvariant()] = lineParts[1];
+
+                                return acc;
+                            })
+                        : new Dictionary<string, string>();
+
+                    string? GetConfigVar(string name)
+                    {
+                        name = name.ToLowerInvariant();
+                        return configFileVars!.TryGetValue(name, out var value) ? value : Environment.GetEnvironmentVariable($"PRESET_CLI_{name}");
+                    }
+
                     return new Config
                     {
                         Providers = new Config.ProvidersConfig
                         {
                             PresetShare = new Config.ProvidersConfig.PresetShareConfig
                             {
-                                BaseURI = "https://presetshare.com"
+                                BaseURI = "https://presetshare.com",
+                                SessionID = GetConfigVar("PRESETSHARE_SESSIONID"),
+                                Identity = GetConfigVar("PRESETSHARE_IDENTITY"),
                             }
                         },
                         Synths = new Config.SynthsConfig
