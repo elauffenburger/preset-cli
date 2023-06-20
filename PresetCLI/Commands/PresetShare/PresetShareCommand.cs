@@ -2,6 +2,7 @@ using CliFx;
 using CliFx.Attributes;
 using CliFx.Exceptions;
 using CliFx.Infrastructure;
+using PresetCLI.Configuration;
 
 namespace PresetCLI.Commands.Providers.PresetShare;
 

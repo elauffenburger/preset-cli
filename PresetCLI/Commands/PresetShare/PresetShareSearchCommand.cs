@@ -4,6 +4,7 @@ using Terminal.Gui;
 using PresetCLI.UI;
 using PresetCLI.Enums;
 using PresetCLI.Providers.PresetShare;
+using PresetCLI.Configuration;
 
 namespace PresetCLI.Commands.Providers.PresetShare;
 

@@ -4,150 +4,18 @@ using System.Text.RegularExpressions;
 using CliFx;
 using CliFx.Extensibility;
 using Microsoft.Extensions.DependencyInjection;
+using PresetCLI.Configuration;
 using PresetCLI.Enums;
+using PresetCLI.Providers;
 using PresetCLI.Providers.PresetShare;
+using PresetCLI.Synths;
+using PresetCLI.Synths.Vital;
 
 namespace PresetCLI;
 
-public class Config
-{
-    public class ProvidersConfig
-    {
-        public class PresetShareConfig
-        {
-            public required string BaseURI;
-            public string? SessionID;
-            public string? Identity;
-        }
-
-        public required PresetShareConfig PresetShare;
-    }
-
-    public class SynthsConfig
-    {
-        public class VitalConfig
-        {
-            public required string PresetsDir;
-        }
-
-        public required VitalConfig Vital;
-    }
-
-    public required ProvidersConfig Providers;
-    public required SynthsConfig Synths;
-}
-
-public enum ProviderType
-{
-    PresetShare,
-}
-
-public interface IProviderService
-{
-    string ProviderName { get; }
-
-    Task<bool> IsDownloaded(PresetSearchResult result);
-
-    Task<string> DownloadPreviewAsync(PresetSearchResult result);
-    Task DownloadPresetAsync(PresetSearchResult result);
-
-    Task ClearCacheAsync();
-}
-
-public abstract class ProviderService : IProviderService
-{
-    protected readonly Func<HttpClient> _clientFn;
-    protected readonly Dictionary<SynthType, ISynthService> _synthServices;
-
-    public ProviderService(Func<HttpClient> clientFn, Dictionary<SynthType, ISynthService> synthServices)
-    {
-        _clientFn = clientFn;
-        _synthServices = synthServices;
-    }
-
-    public abstract string ProviderName { get; }
-
-    public async Task<bool> IsDownloaded(PresetSearchResult result)
-    {
-        return File.Exists(_synthServices[result.Synth].PresetPath(result));
-    }
-
-    public async Task<string> DownloadPreviewAsync(PresetSearchResult result)
-    {
-        var path = Path.Join(CreateCacheDir("previews"), result.ID.ToString());
-        return await DownloadURLTo(result.PreviewURL!, path);
-    }
-
-    public Task DownloadPresetAsync(PresetSearchResult result)
-    {
-        var path = _synthServices[result.Synth].PresetPath(result);
-        return DownloadURLTo(result.DownloadURL, path);
-    }
-
-    public async Task ClearCacheAsync()
-    {
-        if (!Directory.Exists(RootProviderCacheDir))
-        {
-            return;
-        }
-
-        Directory.Delete(RootProviderCacheDir, true);
-    }
-
-    private string CreateCacheDir(string dir) => Directory.CreateDirectory($"{RootProviderCacheDir}/{dir}").FullName;
-
-    private async Task<string> DownloadURLTo(string url, string path)
-    {
-        if (!File.Exists(path))
-        {
-            // Create the directory for the preset.
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-
-            var client = _clientFn();
-
-            var res = await client.GetAsync(url);
-            await File.WriteAllBytesAsync(path, await res.Content.ReadAsByteArrayAsync());
-        }
-
-        return path;
-    }
-
-    private string RootProviderCacheDir => $"{Path.GetTempPath()}/preset-cli/{ProviderName}";
-}
-
-public interface ISynthService
-{
-    public string PresetPath(PresetSearchResult result);
-}
-
-public abstract class SynthService : ISynthService
-{
-    private static readonly Regex _fileNameInvalidCharsRegex = new("[^a-zA-Z0-9_]");
-
-    public abstract string PresetPath(PresetSearchResult result);
-
-    protected string NormalizeFileName(string name)
-    {
-        return _fileNameInvalidCharsRegex.Replace(name, "_");
-    }
-}
-
-public class VitalSynthService : SynthService
-{
-    private readonly Config _config;
-
-    public VitalSynthService(Config config)
-    {
-        _config = config;
-    }
-
-    public override string PresetPath(PresetSearchResult result)
-    {
-        return Path.Join(_config.Synths.Vital.PresetsDir, result.Author, "Presets", $"{NormalizeFileName(result.Name)}.vital");
-    }
-}
-
 public record PresetSearchResult(int ID, ProviderType Provider, bool IsPremium, SynthType Synth, string Name, string Author, string Description, string? PreviewURL, string DownloadURL) { }
+
+public record PresetSearchResults(List<PresetSearchResult> Results, int Page, int NumPages) {}
 
 public class Program
 {

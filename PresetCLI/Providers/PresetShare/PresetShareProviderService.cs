@@ -1,4 +1,5 @@
 using PresetCLI.Enums;
+using PresetCLI.Synths;
 
 namespace PresetCLI.Providers.PresetShare;
 

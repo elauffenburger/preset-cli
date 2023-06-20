@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using PresetCLI.Commands.Providers.PresetShare;
 using PresetCLI.Enums;
+using PresetCLI.Providers;
 using PresetCLI.Providers.PresetShare;
 using Terminal.Gui;
 
@@ -12,7 +13,7 @@ public class PresetSearchResultsPage
     private readonly PresetShareSearchService _presetShareSearchService;
     private readonly NetCoreAudio.Player _player = new();
 
-    private SearchResults? _results;
+    private PresetSearchResults? _results;
 
     private Window? _window;
     private Dialog? _loadingDialog;

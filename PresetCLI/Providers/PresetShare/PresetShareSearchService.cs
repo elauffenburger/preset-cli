@@ -6,12 +6,11 @@ using CliFx.Exceptions;
 using HtmlAgilityPack;
 using Fizzler.Systems.HtmlAgilityPack;
 using System.Net;
+using PresetCLI.Configuration;
 
 namespace PresetCLI.Providers.PresetShare;
 
 public record SearchOptions(string? Keywords, SynthType Synth, GenreType Genre, SoundType Sound, SortType Sort, int Page) { }
-
-public record SearchResults(List<PresetSearchResult> Results, int Page, int NumPages);
 
 public class PresetShareSearchService
 {
@@ -28,7 +27,7 @@ public class PresetShareSearchService
         _synthTypeConverter = synthTypeConverter;
     }
 
-    public async Task<SearchResults> SearchAsync(SearchOptions search)
+    public async Task<PresetSearchResults> SearchAsync(SearchOptions search)
     {
         var client = _clientFn();
 
@@ -36,7 +35,7 @@ public class PresetShareSearchService
         return res.StatusCode switch
         {
             HttpStatusCode.OK => ParseResults(await res.Content.ReadAsStringAsync()),
-            HttpStatusCode.NotFound => new SearchResults(new(), 1, 1),
+            HttpStatusCode.NotFound => new PresetSearchResults(new(), 1, 1),
             _ => throw new CommandException(""),
         };
     }
@@ -106,7 +105,7 @@ public class PresetShareSearchService
         _ => throw new Exception(),
     };
 
-    private SearchResults ParseResults(string html)
+    private PresetSearchResults ParseResults(string html)
     {
         var doc = new HtmlDocument();
         doc.LoadHtml(html);
@@ -152,7 +151,7 @@ public class PresetShareSearchService
             .Where(result => !result.IsPremium)
             .ToList();
 
-        return new SearchResults(Results: results, Page: page, NumPages: numPages);
+        return new PresetSearchResults(Results: results, Page: page, NumPages: numPages);
     }
 
     private static string? HtmlToText(string? html)
