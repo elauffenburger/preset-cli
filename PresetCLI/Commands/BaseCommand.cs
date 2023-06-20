@@ -1,4 +1,5 @@
 using System.Diagnostics;
+
 using CliFx;
 using CliFx.Attributes;
 using CliFx.Infrastructure;
@@ -16,7 +17,7 @@ public abstract class BaseCommand : ICommand
         {
             while (!Debugger.IsAttached)
             {
-                Console.WriteLine("waiting for debugger...");
+                console.Output.WriteLine("waiting for debugger...");
                 await Task.Delay(TimeSpan.FromSeconds(1));
             }
         }

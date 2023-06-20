@@ -1,12 +1,16 @@
-using System.Text.RegularExpressions;
-using PresetCLI.Enums;
-using System.Text;
-using System.Web;
-using CliFx.Exceptions;
-using HtmlAgilityPack;
-using Fizzler.Systems.HtmlAgilityPack;
 using System.Net;
+using System.Text;
+using System.Text.RegularExpressions;
+using System.Web;
+
+using CliFx.Exceptions;
+
+using Fizzler.Systems.HtmlAgilityPack;
+
+using HtmlAgilityPack;
+
 using PresetCLI.Configuration;
+using PresetCLI.Enums;
 
 namespace PresetCLI.Providers.PresetShare;
 

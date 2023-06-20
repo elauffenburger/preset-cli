@@ -1,9 +1,12 @@
 ﻿using System.Diagnostics;
 using System.Net;
 using System.Text.RegularExpressions;
+
 using CliFx;
 using CliFx.Extensibility;
+
 using Microsoft.Extensions.DependencyInjection;
+
 using PresetCLI.Configuration;
 using PresetCLI.Enums;
 using PresetCLI.Providers;
@@ -15,7 +18,7 @@ namespace PresetCLI;
 
 public record PresetSearchResult(int ID, ProviderType Provider, bool IsPremium, SynthType Synth, string Name, string Author, string Description, string? PreviewURL, string DownloadURL) { }
 
-public record PresetSearchResults(List<PresetSearchResult> Results, int Page, int NumPages) {}
+public record PresetSearchResults(List<PresetSearchResult> Results, int Page, int NumPages) { }
 
 public class Program
 {

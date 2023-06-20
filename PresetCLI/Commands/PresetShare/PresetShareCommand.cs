@@ -2,6 +2,7 @@ using CliFx;
 using CliFx.Attributes;
 using CliFx.Exceptions;
 using CliFx.Infrastructure;
+
 using PresetCLI.Configuration;
 
 namespace PresetCLI.Commands.Providers.PresetShare;
@@ -30,7 +31,8 @@ public abstract class PresetShareCommand : BaseCommand
             _config.Providers.PresetShare.SessionID = SessionID;
         }
 
-        if(!string.IsNullOrEmpty(Identity)) {
+        if (!string.IsNullOrEmpty(Identity))
+        {
             _config.Providers.PresetShare.Identity = Identity;
         }
 

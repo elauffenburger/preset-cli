@@ -1,10 +1,12 @@
 using CliFx.Attributes;
 using CliFx.Infrastructure;
-using Terminal.Gui;
-using PresetCLI.UI;
+
+using PresetCLI.Configuration;
 using PresetCLI.Enums;
 using PresetCLI.Providers.PresetShare;
-using PresetCLI.Configuration;
+using PresetCLI.UI;
+
+using Terminal.Gui;
 
 namespace PresetCLI.Commands.Providers.PresetShare;
 

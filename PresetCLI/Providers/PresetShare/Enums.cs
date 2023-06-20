@@ -1,5 +1,6 @@
 using CliFx.Exceptions;
 using CliFx.Extensibility;
+
 using PresetCLI.Enums;
 
 namespace PresetCLI.Providers.PresetShare;

@@ -1,8 +1,10 @@
 using System.Diagnostics;
+
 using PresetCLI.Commands.Providers.PresetShare;
 using PresetCLI.Enums;
 using PresetCLI.Providers;
 using PresetCLI.Providers.PresetShare;
+
 using Terminal.Gui;
 
 namespace PresetCLI.UI;

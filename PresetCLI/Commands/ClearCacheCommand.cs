@@ -1,6 +1,7 @@
 using CliFx;
 using CliFx.Attributes;
 using CliFx.Infrastructure;
+
 using PresetCLI.Providers;
 
 namespace PresetCLI.Commands;
