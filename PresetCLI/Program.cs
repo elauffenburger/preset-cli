@@ -1,6 +1,4 @@
-﻿using System.Diagnostics;
-using System.Net;
-using System.Text.RegularExpressions;
+﻿using System.Net;
 
 using CliFx;
 using CliFx.Extensibility;
@@ -22,7 +20,7 @@ public record PresetSearchResults(List<PresetSearchResult> Results, int Page, in
 
 public class Program
 {
-    public static async Task<int> Main(string[] args)
+    public static async Task<int> Main()
     {
         return await new CliApplicationBuilder()
             .AddCommandsFromThisAssembly()
