@@ -3,13 +3,13 @@ using CliFx.Infrastructure;
 using Terminal.Gui;
 using PresetCLI.UI;
 using PresetCLI.Enums;
+using PresetCLI.Providers.PresetShare;
 
 namespace PresetCLI.Commands.Providers.PresetShare;
 
 [Command("presetshare search")]
 public class SearchCommand : PresetShareCommand
 {
-    private readonly Dictionary<SynthType, ISynthService> _synthServices;
     private readonly PresetShareProviderService _presetShareProviderService;
     private readonly PresetShareSearchService _presetShareSearchService;
 
@@ -28,10 +28,9 @@ public class SearchCommand : PresetShareCommand
     [CommandOption("sort", 's', Converter = typeof(SortTypeConverter))]
     public SortType Sort { get; init; } = SortType.Relevance;
 
-    public SearchCommand(Config config, PresetShareSearchService presetShareSearchService, Dictionary<SynthType, ISynthService> synthServices, PresetShareProviderService presetShareProviderService) : base(config)
+    public SearchCommand(Config config, PresetShareSearchService presetShareSearchService, PresetShareProviderService presetShareProviderService) : base(config)
     {
         _presetShareSearchService = presetShareSearchService;
-        _synthServices = synthServices;
         _presetShareProviderService = presetShareProviderService;
     }
 
@@ -39,7 +38,7 @@ public class SearchCommand : PresetShareCommand
     {
         await base.ExecuteAsync(console);
 
-        var ui = new SearchResultsPage(_presetShareProviderService, _synthServices, _presetShareSearchService);
+        var ui = new PresetSearchResultsPage(_presetShareProviderService, _presetShareSearchService);
         await ui.Start(new SearchOptions(Keywords: Keywords, Synth: Synth, Genre: Genre, Sound: Sound, Sort: Sort, Page: 1));
     }
 }

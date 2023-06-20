@@ -5,12 +5,13 @@ using System.Web;
 using CliFx.Exceptions;
 using HtmlAgilityPack;
 using Fizzler.Systems.HtmlAgilityPack;
+using System.Net;
 
-namespace PresetCLI.Commands.Providers.PresetShare;
+namespace PresetCLI.Providers.PresetShare;
 
 public record SearchOptions(string? Keywords, SynthType Synth, GenreType Genre, SoundType Sound, SortType Sort, int Page) { }
 
-public record SearchResults(List<SearchResult> Results, int Page, int NumPages);
+public record SearchResults(List<PresetSearchResult> Results, int Page, int NumPages);
 
 public class PresetShareSearchService
 {
@@ -32,12 +33,12 @@ public class PresetShareSearchService
         var client = _clientFn();
 
         var res = await client.GetAsync(BuildRequestURI(search));
-        if (res.StatusCode != System.Net.HttpStatusCode.OK)
+        return res.StatusCode switch
         {
-            throw new CommandException("");
-        }
-
-        return ParseResults(await res.Content.ReadAsStringAsync());
+            HttpStatusCode.OK => ParseResults(await res.Content.ReadAsStringAsync()),
+            HttpStatusCode.NotFound => new SearchResults(new(), 1, 1),
+            _ => throw new CommandException(""),
+        };
     }
 
     private Uri BuildRequestURI(SearchOptions search)
@@ -56,8 +57,24 @@ public class PresetShareSearchService
     private static string ToQueryValue(SoundType type) => type switch
     {
         SoundType.Any => "",
+        SoundType.Arp => "1",
+        SoundType.Atmosphere => "14",
         SoundType.Bass => "7",
+        SoundType.Chord => "10",
+        SoundType.Drone => "13",
+        SoundType.Drums => "3",
+        SoundType.FX => "4",
+        SoundType.Keys => "6",
+        SoundType.Lead => "11",
+        SoundType.Misc => "18",
         SoundType.Pad => "12",
+        SoundType.Pluck => "5",
+        SoundType.Reese => "8",
+        SoundType.Seq => "2",
+        SoundType.Stab => "9",
+        SoundType.Sub => "17",
+        SoundType.Synth => "16",
+        SoundType.Vox => "15",
         _ => throw new Exception(),
     };
 
@@ -120,7 +137,7 @@ public class PresetShareSearchService
                 var id = downloadButton?.GetAttributeValue<int?>("data-preset-id", null);
                 var previewURL = node.QuerySelector(".presetshare-player")?.GetAttributeValue("data-source", null);
 
-                return new SearchResult(
+                return new PresetSearchResult(
                     ID: id ?? 0,
                     Provider: ProviderType.PresetShare,
                     IsPremium: downloadButton?.HasClass("for-subs") ?? true,

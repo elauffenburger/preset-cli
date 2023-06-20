@@ -5,7 +5,7 @@ using CliFx.Infrastructure;
 
 namespace PresetCLI.Commands.Providers.PresetShare;
 
-public abstract class PresetShareCommand : ICommand
+public abstract class PresetShareCommand : BaseCommand
 {
     protected Config _config;
 
@@ -20,8 +20,10 @@ public abstract class PresetShareCommand : ICommand
         _config = config;
     }
 
-    public virtual ValueTask ExecuteAsync(IConsole console)
+    public override async ValueTask ExecuteAsync(IConsole console)
     {
+        await base.ExecuteAsync(console);
+
         if (!string.IsNullOrEmpty(SessionID))
         {
             _config.Providers.PresetShare.SessionID = SessionID;
@@ -35,7 +37,5 @@ public abstract class PresetShareCommand : ICommand
         {
             throw new CommandException("");
         }
-
-        return ValueTask.CompletedTask;
     }
 }

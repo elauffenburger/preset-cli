@@ -2,21 +2,53 @@ using CliFx.Exceptions;
 using CliFx.Extensibility;
 using PresetCLI.Enums;
 
-namespace PresetCLI.Commands.Providers.PresetShare;
+namespace PresetCLI.Providers.PresetShare;
 
 public enum SoundType
 {
     Any,
+    Arp,
+    Atmosphere,
     Bass,
+    Chord,
+    Drone,
+    Drums,
+    FX,
+    Keys,
+    Lead,
+    Misc,
     Pad,
+    Pluck,
+    Reese,
+    Seq,
+    Stab,
+    Sub,
+    Synth,
+    Vox,
 }
 
 public class SoundTypeConverter : BindingConverter<SoundType>
 {
     public override SoundType Convert(string? rawValue) => rawValue switch
     {
+        "arp" => SoundType.Arp,
+        "atmosphere" => SoundType.Atmosphere,
         "bass" => SoundType.Bass,
+        "chord" => SoundType.Chord,
+        "drone" => SoundType.Drone,
+        "drums" => SoundType.Drums,
+        "fx" => SoundType.FX,
+        "keys" => SoundType.Keys,
+        "lead" => SoundType.Lead,
+        "misc" => SoundType.Misc,
         "pad" => SoundType.Pad,
+        "pluck" => SoundType.Pluck,
+        "reese" => SoundType.Reese,
+        "seq" => SoundType.Seq,
+        "stab" => SoundType.Stab,
+        "sub" => SoundType.Sub,
+        "synth" => SoundType.Synth,
+        "vox" => SoundType.Vox,
         null => SoundType.Any,
         _ => throw new CommandException("")
     };

@@ -1,14 +1,14 @@
 using System.Diagnostics;
 using PresetCLI.Commands.Providers.PresetShare;
 using PresetCLI.Enums;
+using PresetCLI.Providers.PresetShare;
 using Terminal.Gui;
 
 namespace PresetCLI.UI;
 
-public class SearchResultsPage
+public class PresetSearchResultsPage
 {
     private readonly IProviderService _providerService;
-    private readonly Dictionary<SynthType, ISynthService> _synthServices;
     private readonly PresetShareSearchService _presetShareSearchService;
     private readonly NetCoreAudio.Player _player = new();
 
@@ -19,10 +19,9 @@ public class SearchResultsPage
     private ListView? _resultsList;
     private int? _selectedResultIndex;
 
-    public SearchResultsPage(IProviderService providerService, Dictionary<SynthType, ISynthService> synthServices, PresetShareSearchService presetShareSearchService)
+    public PresetSearchResultsPage(IProviderService providerService, PresetShareSearchService presetShareSearchService)
     {
         _providerService = providerService;
-        _synthServices = synthServices;
         _presetShareSearchService = presetShareSearchService;
     }
 
@@ -54,7 +53,7 @@ public class SearchResultsPage
         };
 
         // Add a results list view.
-        _resultsList = CreateResultsListView(_results.Results);
+        _resultsList = await CreateResultsListView(_results.Results);
         _window.Add(_resultsList);
 
         // Track that we're currently on the first item.
@@ -87,11 +86,16 @@ public class SearchResultsPage
 
                     break;
 
-                case Key.Enter:
+                case Key.d:
                     AddLoader();
-                    var selected = _results.Results[_selectedResultIndex.Value];
-                    var file = await _providerService.DownloadPresetAsync(selected);
-                    await _synthServices[selected.Synth].ImportPresetAsync(selected, file);
+
+                    var selected = _results!.Results[_selectedResultIndex.Value];
+                    await _providerService.DownloadPresetAsync(selected);
+
+                    var selectedItemIndex = _resultsList.SelectedItem;
+                    _resultsList.SetSource(await CreateResultsListViewSource(_results.Results));
+                    _resultsList.SelectedItem = selectedItemIndex;
+
                     RemoveLoader();
 
                     break;
@@ -125,42 +129,33 @@ public class SearchResultsPage
         var localPreviewFile = await _providerService.DownloadPreviewAsync(result);
         await _player.Stop();
         await _player.Play(localPreviewFile);
-
-        _resultsList!.Subviews.ElementAt(resultIndex).Border.BorderStyle = BorderStyle.Single;
     }
 
-    private ListView CreateResultsListView(List<SearchResult> results)
+    private async Task<List<string>> CreateResultsListViewSource(List<PresetSearchResult> results)
     {
-        var list = new ListView(results.Select(result => result.Name).ToList())
+        var items = new List<string>(results.Count);
+        foreach (var result in results)
+        {
+            var text = await _providerService.IsDownloaded(result) ? $"[✓] {result.Name}" : $"[ ] {result.Name}";
+            items.Add(text);
+        }
+
+        return items;
+    }
+
+    private async Task<ListView> CreateResultsListView(List<PresetSearchResult> results)
+    {
+        var list = new ListView(await CreateResultsListViewSource(results))
         {
             Width = 50,
             Height = Dim.Fill(),
             ColorScheme = Colors.TopLevel,
         };
 
-        for (var i = 0; i < results.Count(); i++)
-        {
-            var result = results[i];
-
-            list.Add(new TextView
-            {
-                ReadOnly = true,
-                Text = result.Name,
-                ColorScheme = Colors.Dialog,
-                CanFocus = false,
-                Border = new Border
-                {
-                    BorderStyle = BorderStyle.None,
-                    BorderBrush = Color.Red,
-                    BorderThickness = new Thickness(1),
-                },
-            });
-        }
-
         return list;
     }
 
-    private bool CreateResultDetailsPanel(View resultsList, SearchResult result, out PanelView? panel, out TextView? text)
+    private bool CreateResultDetailsPanel(View resultsList, PresetSearchResult result, out PanelView? panel, out TextView? text)
     {
         if (resultsList == null)
         {
@@ -188,6 +183,6 @@ public class SearchResultsPage
         return true;
     }
 
-    private static string GetDetailsText(SearchResult result)
+    private static string GetDetailsText(PresetSearchResult result)
         => $"{result.Author}\n-----\n{result.Description}";
 }

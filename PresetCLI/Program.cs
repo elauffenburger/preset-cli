@@ -4,8 +4,8 @@ using System.Text.RegularExpressions;
 using CliFx;
 using CliFx.Extensibility;
 using Microsoft.Extensions.DependencyInjection;
-using PresetCLI.Commands.Providers.PresetShare;
 using PresetCLI.Enums;
+using PresetCLI.Providers.PresetShare;
 
 namespace PresetCLI;
 
@@ -46,8 +46,10 @@ public interface IProviderService
 {
     string ProviderName { get; }
 
-    Task<string> DownloadPreviewAsync(SearchResult result);
-    Task<string> DownloadPresetAsync(SearchResult result);
+    Task<bool> IsDownloaded(PresetSearchResult result);
+
+    Task<string> DownloadPreviewAsync(PresetSearchResult result);
+    Task DownloadPresetAsync(PresetSearchResult result);
 
     Task ClearCacheAsync();
 }
@@ -55,23 +57,30 @@ public interface IProviderService
 public abstract class ProviderService : IProviderService
 {
     protected readonly Func<HttpClient> _clientFn;
+    protected readonly Dictionary<SynthType, ISynthService> _synthServices;
 
-    public ProviderService(Func<HttpClient> clientFn)
+    public ProviderService(Func<HttpClient> clientFn, Dictionary<SynthType, ISynthService> synthServices)
     {
         _clientFn = clientFn;
+        _synthServices = synthServices;
     }
 
     public abstract string ProviderName { get; }
 
-    public async Task<string> DownloadPreviewAsync(SearchResult result)
+    public async Task<bool> IsDownloaded(PresetSearchResult result)
+    {
+        return File.Exists(_synthServices[result.Synth].PresetPath(result));
+    }
+
+    public async Task<string> DownloadPreviewAsync(PresetSearchResult result)
     {
         var path = Path.Join(CreateCacheDir("previews"), result.ID.ToString());
         return await DownloadURLTo(result.PreviewURL!, path);
     }
 
-    public Task<string> DownloadPresetAsync(SearchResult result)
+    public Task DownloadPresetAsync(PresetSearchResult result)
     {
-        var path = Path.Join(CreateCacheDir("presets"), result.ID.ToString());
+        var path = _synthServices[result.Synth].PresetPath(result);
         return DownloadURLTo(result.DownloadURL, path);
     }
 
@@ -91,6 +100,9 @@ public abstract class ProviderService : IProviderService
     {
         if (!File.Exists(path))
         {
+            // Create the directory for the preset.
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+
             var client = _clientFn();
 
             var res = await client.GetAsync(url);
@@ -105,14 +117,14 @@ public abstract class ProviderService : IProviderService
 
 public interface ISynthService
 {
-    Task ImportPresetAsync(SearchResult result, string path);
+    public string PresetPath(PresetSearchResult result);
 }
 
 public abstract class SynthService : ISynthService
 {
     private static readonly Regex _fileNameInvalidCharsRegex = new("[^a-zA-Z0-9_]");
 
-    public abstract Task ImportPresetAsync(SearchResult result, string sourceFile);
+    public abstract string PresetPath(PresetSearchResult result);
 
     protected string NormalizeFileName(string name)
     {
@@ -129,35 +141,18 @@ public class VitalSynthService : SynthService
         _config = config;
     }
 
-    public override async Task ImportPresetAsync(SearchResult result, string sourceFile)
+    public override string PresetPath(PresetSearchResult result)
     {
-        var dir = Directory.CreateDirectory(Path.Join(_config.Synths.Vital.PresetsDir, result.Author, "Presets"));
-        var target = Path.Join(dir.FullName, $"{NormalizeFileName(result.Name)}.vital");
-
-        if (File.Exists(target))
-        {
-            File.Delete(target);
-        }
-
-        File.Copy(sourceFile, target);
+        return Path.Join(_config.Synths.Vital.PresetsDir, result.Author, "Presets", $"{NormalizeFileName(result.Name)}.vital");
     }
 }
 
-public record SearchResult(int ID, ProviderType Provider, bool IsPremium, SynthType Synth, string Name, string Author, string Description, string? PreviewURL, string DownloadURL) { }
+public record PresetSearchResult(int ID, ProviderType Provider, bool IsPremium, SynthType Synth, string Name, string Author, string Description, string? PreviewURL, string DownloadURL) { }
 
 public class Program
 {
     public static async Task<int> Main(string[] args)
     {
-        if (args.Any(arg => arg == "--debug"))
-        {
-            while (!Debugger.IsAttached)
-            {
-                Console.WriteLine("waiting for debugger...");
-                await Task.Delay(TimeSpan.FromSeconds(1));
-            }
-        }
-
         return await new CliApplicationBuilder()
             .AddCommandsFromThisAssembly()
             .UseTypeActivator(cmds =>
@@ -195,7 +190,7 @@ public class Program
 
                         var handler = new HttpClientHandler();
                         handler.CookieContainer.Add(new Uri("https://presetshare.com"), new Cookie("PHPSESSID", config.Providers.PresetShare.SessionID));
-                        handler.CookieContainer.Add(new Uri("https://presetshare.com"), new Cookie("_identity", "a03ffadc68a6e52acb1a38f0279938fac7614bbe41aac05b33d7fc54b2d2f2dea%3A2%3A%7Bi%3A0%3Bs%3A9%3A%22_identity%22%3Bi%3A1%3Bs%3A50%3A%22%5B51637%2C%22dLGZjPG_64a2nAOdNP6UpvdKbw1tNiWx%22%2C2592000%5D%22%3B%7D"));
+                        handler.CookieContainer.Add(new Uri("https://presetshare.com"), new Cookie("_identity", config.Providers.PresetShare.Identity));
 
                         return new HttpClient(handler);
                     };
